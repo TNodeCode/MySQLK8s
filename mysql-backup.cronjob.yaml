@@ -1,0 +1,61 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: mysql-backup
+spec:
+  schedule: "0 */1 * * *" # see: https://crontab.guru
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          volumes:
+          # Request the volume with the given claimName
+          - name: mysql-storage
+            persistentVolumeClaim:
+              claimName: db
+          containers:
+          - name: mysql-backup
+            image: mysql:8.0
+            volumeMounts:
+            - name: mysql-storage # has to be indentical to one of the volume names defined above
+              mountPath: /mnt # map this directory in the container to the volume subPath
+              subPath: mysql-backup # sub dir in the volume
+            env:
+              - name: MYSQL_HOST
+                value: 37.221.198.242
+              - name: MYSQL_PORT
+                value: "3306"
+              - name: MYSQL_DATABASE
+                valueFrom:
+                  secretKeyRef:
+                    name: mysqlsecret
+                    key: MYSQL_DATABASE
+              - name: MYSQL_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: mysqlsecret
+                    key: MYSQL_USER
+              - name: MYSQL_ROOT_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: mysqlsecret
+                    key: MYSQL_ROOT_PASSWORD
+              - name: MYSQL_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: mysqlsecret
+                    key: MYSQL_PASSWORD
+              - name: MYSQLDUMP_RESULT_FILE
+                value: code_generator
+            command: ["sh"]
+            args:
+              - -c
+              - >-
+                  mysqldump \
+                    --host=$MYSQL_HOST \
+                    --port=$MYSQL_PORT \
+                    --user=root \
+                    --password=$MYSQL_ROOT_PASSWORD \
+                    --result-file=/mnt/$(echo $MYSQLDUMP_RESULT_FILE)_$(date '+%Y-%m-%d_%H:%M:%S').sql \
+                    $MYSQL_DATABASE
+          restartPolicy: Never
